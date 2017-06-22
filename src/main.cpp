@@ -153,8 +153,6 @@ int main()
 
   });
 
-  // We don't need this since we're not using HTTP but if it's removed the program
-  // doesn't compile :-(
   h.onHttpRequest([](uWS::HttpResponse *res, uWS::HttpRequest req, char *data, size_t, size_t) {
     const std::string s = "<h1>Hello world!</h1>";
     if (req.getUrl().valueLength == 1)
