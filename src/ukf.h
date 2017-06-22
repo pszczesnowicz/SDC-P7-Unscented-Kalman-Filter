@@ -75,6 +75,9 @@ public:
   
   // Radar measurement noise matrix
   MatrixXd R_rad_;
+  
+  // Laser measurement function.
+  MatrixXd H_las_;
 
   // Weights of sigma points
   VectorXd weights_;
@@ -85,43 +88,33 @@ public:
   // Radar Normalized Innovation Squared (NIS)
   double NIS_rad_;
   
-
   // Constructor
   UKF();
 
-  
   // Destructor
   virtual ~UKF();
 
-  
-  /**
-   * ProcessMeasurement
-   * @param meas_package The latest measurement data of either radar or laser
-   */
+  // ProcessMeasurement
+  // @param meas_package The latest measurement data of either radar or laser
   void ProcessMeasurement(MeasurementPackage meas_package);
 
-  
-  /**
-   * Prediction Predicts sigma points, the state, and the state covariance
-   * matrix
-   * @param delta_t Time between k and k+1 in s
-   */
+  // Prediction Predicts sigma points, the state, and the state covariance matrix
+  // @param delta_t Time between k and k+1 in s
   void Prediction(double delta_t);
 
+  // Updates the state and the state covariance matrix using a laser measurement
+  // Uses the linear Kalman Filter equations
+  // @param meas_package The measurement at k+1
+  void UpdateLidarKF(MeasurementPackage meas_package);
   
-  /**
-   * Updates the state and the state covariance matrix using a laser measurement
-   * @param meas_package The measurement at k+1
-   */
-  void UpdateLidar(MeasurementPackage meas_package);
+  // Updates the state and the state covariance matrix using a laser measurement
+  // Uses the Unscented Kalman Filter equations
+  // @param meas_package The measurement at k+1
+  void UpdateLidarUKF(MeasurementPackage meas_package);
 
-  
-  /**
-   * Updates the state and the state covariance matrix using a radar measurement
-   * @param meas_package The measurement at k+1
-   */
-  void UpdateRadar(MeasurementPackage meas_package);
-  
+  // Updates the state and the state covariance matrix using a radar measurement
+  // @param meas_package The measurement at k+1
+  void UpdateRadarUKF(MeasurementPackage meas_package);
   
 };
 

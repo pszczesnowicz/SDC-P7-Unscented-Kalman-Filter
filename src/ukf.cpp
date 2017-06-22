@@ -39,9 +39,6 @@ UKF::UKF() {
 
   // Covariance matrix.
   P_ = MatrixXd(n_x_, n_x_);
-
-  // Weights vector.
-  weights_ = VectorXd(2 * n_aug_ + 1);
   
   // Predicted sigma points matrix.
   X_sig_pred_ = MatrixXd(n_x_, 2 * n_aug_ + 1);
@@ -72,6 +69,12 @@ UKF::UKF() {
   
   // Radar measurement noise matrix.
   R_rad_ = MatrixXd(n_rad_z_, n_rad_z_);
+  
+  // Laser KF measurement function.
+  H_las_ = MatrixXd(n_las_z_, n_x_);
+  
+  // Weights vector.
+  weights_ = VectorXd(2 * n_aug_ + 1);
   
 }
 
@@ -118,6 +121,10 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     R_rad_ << pow(std_radr_, 2.0), 0, 0,
               0, pow(std_radphi_,  2.0), 0,
               0, 0, pow(std_radrd_, 2.0);
+
+    // Initializing the laser KF measurement function.
+    H_las_ << 1, 0, 0, 0, 0,
+              0, 1, 0, 0, 0;
     
     // Initializing the weights vector.
     weights_(0) = lambda_ / (lambda_ + n_aug_);
@@ -155,7 +162,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     if (!use_laser_) {
       return;
     }
-    UpdateLidar(meas_package);
+    UpdateLidarKF(meas_package);
   }
   
   // Updating state and covariance using RADAR measurements.
@@ -163,7 +170,7 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
     if (!use_radar_) {
       return;
     }
-    UpdateRadar(meas_package);
+    UpdateRadarUKF(meas_package);
   }
 }
 
@@ -264,10 +271,46 @@ void UKF::Prediction(double delta_t) {
   
 }
 
+// Updates the state and the state covariance matrix using a laser measurement.
+// Uses the linear Kalman Filter equations.
+// @param {MeasurementPackage} meas_package
+void UKF::UpdateLidarKF(MeasurementPackage meas_package) {
+
+  Tools tools;
+  
+  // Pre-computing
+  MatrixXd PHt = P_ * H_las_.transpose();
+  
+  // Creating the measurement covariance matrix.
+  MatrixXd S = H_las_ *  PHt + R_las_;
+  
+  // Creating the Kalman gain matrix.
+  MatrixXd K = PHt * S.inverse();
+  
+  // Creating an identity matrix.
+  MatrixXd I = MatrixXd::Identity(x_.size(), x_.size());
+  
+  // Caclulating the difference between the measured and predicted values.
+  VectorXd y = meas_package.raw_measurements_ - H_las_ * x_;
+  
+  // Updating the state vector.
+  x_ = x_ + K * y;
+  
+  // Updating the uncertainty covariance matrix.
+  P_ = (I - K * H_las_) * P_;
+  
+  // Calculating the NIS
+  NIS_las_ = tools.CalculateNIS(y, S);
+  
+  // cout << NIS_las_ << "\n";
+  
+}
+
 
 // Updates the state and the state covariance matrix using a laser measurement.
+// Uses the Unscented Kalman Filter equations.
 // @param {MeasurementPackage} meas_package
-void UKF::UpdateLidar(MeasurementPackage meas_package) {
+void UKF::UpdateLidarUKF(MeasurementPackage meas_package) {
   
   Tools tools;
   
@@ -338,7 +381,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
 
 // Updates the state and the state covariance matrix using a radar measurement.
 // @param {MeasurementPackage} meas_package
-void UKF::UpdateRadar(MeasurementPackage meas_package) {
+void UKF::UpdateRadarUKF(MeasurementPackage meas_package) {
   
   Tools tools;
   
