@@ -28,6 +28,12 @@ public:
   // Augmented state dimension
   int n_aug_;
   
+  // Laser measurement dimension.
+  int n_las_z_;
+  
+  // Radar measurement dimension.
+  int n_rad_z_;
+  
   // Sigma point spreading parameter
   double lambda_;
   
@@ -63,6 +69,12 @@ public:
 
   // Radar measurement noise standard deviation radius change in m/s
   double std_radrd_ ;
+  
+  // Laser measurement noise matrix
+  MatrixXd R_las_;
+  
+  // Radar measurement noise matrix
+  MatrixXd R_rad_;
 
   // Weights of sigma points
   VectorXd weights_;

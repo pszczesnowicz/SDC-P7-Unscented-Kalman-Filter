@@ -13,10 +13,10 @@ UKF::UKF() {
   
   is_initialized_ = false;
   
-  // if this is false, laser measurements will be ignored (except during init)
+  // If this is false, laser measurements will be ignored (except during init).
   use_laser_ = true;
 
-  // if this is false, radar measurements will be ignored (except during init)
+  // If this is false, radar measurements will be ignored (except during init).
   use_radar_ = true;
   
   // State dimension.
@@ -24,6 +24,12 @@ UKF::UKF() {
   
   // Augmented state dimension.
   n_aug_ = 7;
+  
+  // Laser measurement dimension.
+  n_las_z_ = 2;
+  
+  // Radar measurement dimension.
+  n_rad_z_ = 3;
   
   // Sigma point spreading parameter.
   lambda_ = 3.0 - n_aug_;
@@ -40,30 +46,36 @@ UKF::UKF() {
   // Predicted sigma points matrix.
   X_sig_pred_ = MatrixXd(n_x_, 2 * n_aug_ + 1);
   
-  // Process noise standard deviation longitudinal acceleration in m/s^2
+  // Process noise standard deviation longitudinal acceleration in m/s^2.
   std_a_ = 3;
 
-  // Process noise standard deviation yaw acceleration in rad/s^2
+  // Process noise standard deviation yaw acceleration in rad/s^2.
   std_yawdd_ = 3;
 
-  // Laser measurement noise standard deviation position1 in m
+  // Laser measurement noise standard deviation position1 in m.
   std_laspx_ = 0.15;
 
-  // Laser measurement noise standard deviation position2 in m
+  // Laser measurement noise standard deviation position2 in m.
   std_laspy_ = 0.15;
 
-  // Radar measurement noise standard deviation radius in m
+  // Radar measurement noise standard deviation radius in m.
   std_radr_ = 0.3;
 
-  // Radar measurement noise standard deviation angle in rad
+  // Radar measurement noise standard deviation angle in rad.
   std_radphi_ = 0.03;
 
-  // Radar measurement noise standard deviation radius change in m/s
+  // Radar measurement noise standard deviation radius change in m/s.
   std_radrd_ = 0.3;
+  
+  // Laser measurement noise matrix.
+  R_las_ = MatrixXd(n_las_z_, n_las_z_);
+  
+  // Radar measurement noise matrix.
+  R_rad_ = MatrixXd(n_rad_z_, n_rad_z_);
   
 }
 
-// Class destructor
+// Class destructor.
 UKF::~UKF() {}
 
 
@@ -97,6 +109,15 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
           0, 0, 1, 0, 0,
           0, 0, 0, 1, 0,
           0, 0, 0, 0, 1;
+    
+    // Initializing the laser measurement noise matrix.
+    R_las_ << pow(std_laspx_, 2.0), 0,
+              0, pow(std_laspy_, 2.0);
+    
+    // Initializing the radar measurement noise matrix.
+    R_rad_ << pow(std_radr_, 2.0), 0, 0,
+              0, pow(std_radphi_,  2.0), 0,
+              0, 0, pow(std_radrd_, 2.0);
     
     // Initializing the weights vector.
     weights_(0) = lambda_ / (lambda_ + n_aug_);
@@ -254,49 +275,41 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   // * Predicting the measurement mean and covariance *
   // **************************************************
   
-  // Measurement dimension
-  int n_z = 2;
-  
   // Creating the predicted, measurement space, sigma points matrix.
-  MatrixXd Z_sig_pred = MatrixXd(n_z, 2 * n_aug_ + 1);
+  MatrixXd Z_sig_pred = MatrixXd(n_las_z_, 2 * n_aug_ + 1);
   Z_sig_pred.fill(0.0);
   
   // Creating the predicted measurement mean vector.
-  VectorXd z_pred = VectorXd(n_z);
+  VectorXd z_pred = VectorXd(n_las_z_);
   z_pred.fill(0.0);
   
   for (int i = 0; i < 2 * n_aug_ + 1; ++i) {
     
-    Z_sig_pred.col(i) = X_sig_pred_.col(i).head(n_z);
+    Z_sig_pred.col(i) = X_sig_pred_.col(i).head(n_las_z_);
     
     z_pred += weights_(i) * Z_sig_pred.col(i);
     
   }
   
   // Creating the predicted measurement covariance matrix.
-  MatrixXd S = MatrixXd(n_z, n_z);
+  MatrixXd S = MatrixXd(n_las_z_, n_las_z_);
   S.fill(0.0);
   
   for (int i = 0; i < 2 * n_aug_ + 1; ++i) {
     VectorXd z_diff = Z_sig_pred.col(i) - z_pred;
-   
+    
     S += weights_(i) * z_diff * z_diff.transpose();
     
   }
   
-  // Creating the measurement noise matrix
-  MatrixXd R = MatrixXd(n_z, n_z);
-  R <<  std_laspx_, 0,
-        0, std_laspy_;
-  
-  S += R;
+  S += R_las_;
   
   // ******************************************
   // * Updating the state mean and covariance *
   // ******************************************
   
   // Creating the cross correlation matrix.
-  MatrixXd T = MatrixXd(n_x_, n_z);
+  MatrixXd T = MatrixXd(n_x_, n_las_z_);
   T.fill(0.0);
   
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {
@@ -319,7 +332,7 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   NIS_las_ = tools.CalculateNIS(z_diff, S);
   
   // cout << NIS_las_ << "\n";
-
+  
 }
 
 
@@ -332,16 +345,13 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   // **************************************************
   // * Predicting the measurement mean and covariance *
   // **************************************************
-
-  // Measurement dimension
-  int n_z = 3;
   
   // Creating the predicted measurement space sigma points matrix.
-  MatrixXd Z_sig_pred = MatrixXd(n_z, 2 * n_aug_ + 1);
+  MatrixXd Z_sig_pred = MatrixXd(n_rad_z_, 2 * n_aug_ + 1);
   Z_sig_pred.fill(0.0);
   
   // Creating the predicted measurement mean vector.
-  VectorXd z_pred = VectorXd(n_z);
+  VectorXd z_pred = VectorXd(n_rad_z_);
   z_pred.fill(0.0);
   
   for (int i = 0; i < 2 * n_aug_ + 1; ++i) {
@@ -370,31 +380,25 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   }
   
   // Creating the predicted measurement covariance matrix.
-  MatrixXd S = MatrixXd(n_z, n_z);
+  MatrixXd S = MatrixXd(n_rad_z_, n_rad_z_);
   S.fill(0.0);
   
   for (int i = 0; i < 2 * n_aug_ + 1; ++i) {
     VectorXd z_diff = Z_sig_pred.col(i) - z_pred;
     z_diff(1) = tools.NormalizeAngle(z_diff(1));
-
+    
     S += weights_(i) * z_diff * z_diff.transpose();
     
   }
   
-  // Creating the measurement noise matrix
-  MatrixXd R = MatrixXd(n_z, n_z);
-  R <<  std_radr_, 0, 0,
-        0, std_radphi_, 0,
-        0, 0, std_radrd_;
-  
-  S += R;
+  S += R_rad_;
   
   // ******************************************
   // * Updating the state mean and covariance *
   // ******************************************
   
   // Creating the cross correlation matrix.
-  MatrixXd T = MatrixXd(n_x_, n_z);
+  MatrixXd T = MatrixXd(n_x_, n_rad_z_);
   T.fill(0.0);
   
   for (int i = 0; i < 2 * n_aug_ + 1; i++) {
